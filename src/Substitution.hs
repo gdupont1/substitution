@@ -60,7 +60,7 @@ substituteOnce :: Matcher l t => Rules l t -> [t] -> Maybe [t]
 substituteOnce table [] = Nothing
 substituteOnce table input@(t:ts) =
     case lookupPattern table input of
-      Nothing -> (:) <$> t <*> substituteOnce table ts
+      Nothing -> (t:) <$> substituteOnce table ts
       Just rm -> 
           let filledTemplate = fill (matched rm) (captures rm) (rule_template $ rule rm) in
               Just $ filledTemplate ++ (remaining rm)
