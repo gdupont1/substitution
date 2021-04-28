@@ -60,8 +60,11 @@ data ParserConfig = ParserConfig {
         beginCapture :: String,     -- ^ Character for denoting begining of capture groupe ('(')
         endCapture   :: String,     -- ^ Character for denoting ending of catpure groupe (')')
         repetition   :: String,     -- ^ Character for denoting repetition; always postfix, most associative ('*')
+        repetition1  :: String,     -- ^ Character for denoting one or more reptition; always postfix, most associative ('+')
         optional     :: String,     -- ^ Character for denoting option; always postfix, most associative ('?')
         choice       :: String,     -- ^ Character for denoting alternative; always infix, least associative ('|')
+        beginEscape  :: String,     -- ^ Character for denoting the begining of an escaped sequence
+        endEscape    :: String,     -- ^ Character for denoting the ending of an escaped sequence
         escape       :: Char        -- ^ Character for escaping other character ('\')
     }
 
@@ -71,8 +74,11 @@ defaultConfig = ParserConfig {
         beginCapture = "(",
         endCapture   = ")",
         repetition   = "*",
+        repetition1  = "+"
         optional     = "?",
         choice       = "|",
+        beginEscape  = "\"",
+        endEscape    = "\"",
         escape       = '\\'
     }
 
@@ -121,8 +127,16 @@ parse conf parseLabel str =
                   parse0 "" (Seq accPat (Capture captpatt)) rem'
               | Just rem <- l `startsWith` (endCapture conf) =
                   Left $ ExtraEndCapture
+              | Just rem <- l `startsWith` (beginEscape conf) = do
+                  (escaped, rem') <- findEndE rem
+                  accPat <- parseLab  lastBlock (id) acc
+                  escPat <- parseLab' accPat    (id) escaped
+                  parse0 "" (Seq accPat escPat) rem'
               | Just rem <- l `startsWith` (repetition conf) = do
                   accPat <- parseLab lastBlock (Repeat) acc
+                  parse0 "" accPat rem
+              | Just rem <- l `startsWith` (repetition1 conf) = do
+                  accPat <- parseLab lastBlock (\x -> Seq x (Repeat x)) acc
                   parse0 "" accPat rem
               | Just rem <- l `startsWith` (optional conf) = do
                   accPat <- parseLab lastBlock (Optional) acc
@@ -134,15 +148,19 @@ parse conf parseLabel str =
               | (x:xs) <- l =
                   parse0 (x:acc) lastBlock xs
           findEndN = findEndNested Unescapable (\_ -> UnclosedCapture) (escape conf) (beginCapture conf) (endCapture conf)
-          parseLab :: Pattern l -> (Pattern l -> Pattern l) -> [Char] -> ParserResult (Pattern l)
-          parseLab lastBlock wrapup s =
-              case parseLabel $ reverse s of
-                Nothing -> Left $ LabelError $ reverse s
+          findEndE = findEnd Unescapable (escape conf) (endCapture conf) 
+          parseLab' :: Pattern l -> (Pattern l -> Pattern l) -> [Char] -> ParserResult (Pattern l)
+          parseLab' lastBlock wrapup s =
+              case parseLabel s of
+                Nothing -> Left $ LabelError s
                 Just [] -> Right $ wrapup lastBlock
                 Just ls ->
                     case lastBlock of
                       EmptyPattern -> Right $ toSeq wrapup ls
                       _            -> Right $ Seq lastBlock $ toSeq wrapup ls
+          parseLab :: Pattern l -> (Pattern l -> Pattern l) -> [Char] -> ParserResult (Pattern l)
+          parseLab lastBlock wrapup s =
+              parseLab' lastBlock wrapup $ reverse s
           toSeq :: (Pattern l -> Pattern l) -> [l] -> Pattern l
           toSeq _      [] = EmptyPattern
           toSeq wrapup [x] = wrapup $ Lab x

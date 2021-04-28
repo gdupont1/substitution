@@ -19,7 +19,8 @@ module Substitution.Rule.Parser (
         ParseError(..), ParserConfig(..), defaultConfig,
         ParserResult(..),
         errstring,
-        parseLine
+        parseLine, parseLines, process,
+        removeEmpty
     ) where
 
 import Substitution.Internal.Util
