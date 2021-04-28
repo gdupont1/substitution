@@ -22,7 +22,7 @@ import Data.List (partition)
 -- | Rule, matching a pattern and yielding a template
 data Rule l t = Rule {
         rule_pattern :: Pattern l,
-        rule_automaton :: !(Automaton l),
+        rule_automaton :: Automaton l,
         rule_template :: Template t
     }
 
