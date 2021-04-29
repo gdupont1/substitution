@@ -44,6 +44,8 @@ import Substitution.Label
 data ParseError =
       UnclosedCapture       -- ^ A capture group is never closed
     | ExtraEndCapture       -- ^ A group ending character is encountered but no matching being group has
+    | UnclosedEscape        -- ^ An started escaped sequence has never been finished 
+    | ExtraEndEscape        -- ^ An escaped sequence ending character is encountered but no matching begin has
     | Unescapable           -- ^ An escape character has been encountered but no character follows (typically at EOL)
     | LabelError String     -- ^ The label parsing function returned `Nothing`
     deriving Show
@@ -51,7 +53,9 @@ data ParseError =
 -- | Transform an error to a human-readable string
 errstring :: ParseError -> String
 errstring UnclosedCapture = "Capture group started but never ended"
-errstring ExtraEndCapture = "Extra end delimiter"
+errstring ExtraEndCapture = "Extra end delimiter for capture group"
+errstring UnclosedEscape  = "Escaped sequence started but never ended"
+errstring ExtraEndEscape  = "Extra end delimiter for escaped sequence"
 errstring Unescapable     = "Escape character met at end of stream"
 errstring (LabelError tk) = "Unexpected token around '..." ++ tk ++ "...'"
 
@@ -130,8 +134,10 @@ parse conf parseLabel str =
               | Just rem <- l `startsWith` (beginEscape conf) = do
                   (escaped, rem') <- findEndE rem
                   accPat <- parseLab  lastBlock (id) acc
-                  escPat <- parseLab' accPat    (id) escaped
+                  escPat <- parseLab' accPat    (id)  ((beginEscape conf) ++ escaped ++ (endEscape conf))
                   parse0 "" (Seq accPat escPat) rem'
+              | Just rem <- l `startsWith` (endEscape conf) 
+                  Left $ ExtraEndEscape
               | Just rem <- l `startsWith` (repetition conf) = do
                   accPat <- parseLab lastBlock (Repeat) acc
                   parse0 "" accPat rem
@@ -148,7 +154,7 @@ parse conf parseLabel str =
               | (x:xs) <- l =
                   parse0 (x:acc) lastBlock xs
           findEndN = findEndNested Unescapable (\_ -> UnclosedCapture) (escape conf) (beginCapture conf) (endCapture conf)
-          findEndE = findEnd Unescapable (escape conf) (endCapture conf) 
+          findEndE = findEnd Unescapable UnclosedEscape (escape conf) (endEscape conf) 
           parseLab' :: Pattern l -> (Pattern l -> Pattern l) -> [Char] -> ParserResult (Pattern l)
           parseLab' lastBlock wrapup s =
               case parseLabel s of
