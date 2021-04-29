@@ -25,6 +25,8 @@ import Data.Char (isDigit,digitToInt)
 -- | An error in the parsing of the template
 data ParseError =
       InvalidCaptureRef Char    -- ^ The reference to capture provided is invalid (e.g. not a number)
+    | UnclosedEscape            -- ^ A started escaped sequence has never been finished
+    | ExtraEndEscape            -- ^ End of escaped sequence met but no escaped sequence started
     | Unescapable               -- ^ Escape character met but no character to escape (e.g. at EOF)
     | LabelError String         -- ^ Error while parsing labels
     deriving Show
@@ -32,20 +34,26 @@ data ParseError =
 -- | Transform an error to a human-readable string
 errstring :: ParseError -> String
 errstring (InvalidCaptureRef c) = "Invalid capture group reference " ++ show c
+errstring UnclosedEscape        = "Escaped sequence started but never ended"
+errstring ExtraEndEscape        = "Extra end delimiter for escaped sequence"
 errstring Unescapable           = "Escape character met at end of stream"
 errstring (LabelError tk)       = "Unexpected token around '..." ++ tk ++ "...'"
 
 -- | Parser configuration
 data ParserConfig = ParserConfig {
-        captureRef :: String,   -- ^ Symbol denoting a reference to a capture group (e.g. '$')
-        escape     :: Char      -- ^ Symbol denoting the escaping of a character (e.g. '\')
+        captureRef  :: String,  -- ^ Symbol denoting a reference to a capture group (e.g. '$')
+        beginEscape :: String,  -- ^ Symbol denoting the begining of an escaped sequence
+        endEscape   :: String,  -- ^ Symbol denoting the end of an escaped sequence
+        escape      :: Char     -- ^ Symbol denoting the escaping of a character (e.g. '\')
     }
 
 -- | A default configuration for the parser, POSIX-style/sed syntax
 defaultConfig :: ParserConfig
 defaultConfig = ParserConfig {
-        captureRef = "$",
-        escape     = '\\'
+        captureRef  = "$",
+        beginEscape = "\"",
+        endEscape   = "\"",
+        escape      = '\\'
     }
 
 -- | Pretty print a template with the given configuration
@@ -72,6 +80,14 @@ parse conf parseLabel str =
                   parse0 (y:x:acc) xs
               | [x] <- l, x == escape conf =
                   Left $ Unescapable
+              | Just rem <- l `startsWith` (beginEscape conf) = do
+                  (escaped, rem') <- findEnd Unescapable (\_ -> UnclosedEscape) (escape conf) (endEscape conf) rem
+                  escT <- parseLab' ((beginEscape conf) ++ escaped ++ (endEscape conf))
+                  accT <- parseLab  acc
+                  remT <- parse0 "" rem'
+                  return $ accT ++ escT ++ remT
+              | Just rem <- l `startsWith` (endEscape conf) =
+                  Left $ ExtraEndEscape
               | Just rem <- l `startsWith` (captureRef conf) =
                   case rem of
                     [] -> parse0 acc []
@@ -79,16 +95,16 @@ parse conf parseLabel str =
                         if isDigit xx
                             then do
                                 accT <- parseLab acc
-                                rem <- parse0 "" xxs
-                                return $ accT ++ ((Rf $ digitToInt xx):rem)
+                                remT <- parse0 "" xxs
+                                return $ accT ++ ((Rf $ digitToInt xx):remT)
                             else Left $ InvalidCaptureRef xx
               | (x:xs) <- l =
                   parse0 (x:acc) xs
-          parseLab s =
-              case parseLabel $ reverse s of
-                Nothing -> Left $ LabelError $ reverse s
+          parseLab' s =
+              case parseLabel s of
+                Nothing -> Left $ LabelError s
                 Just ls -> Right $ map Tk ls
-
+          parseLab s = parseLab' $ reverse s
 
 
 
