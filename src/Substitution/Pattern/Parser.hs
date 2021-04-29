@@ -154,7 +154,7 @@ parse conf parseLabel str =
               | (x:xs) <- l =
                   parse0 (x:acc) lastBlock xs
           findEndN = findEndNested Unescapable (\_ -> UnclosedCapture) (escape conf) (beginCapture conf) (endCapture conf)
-          findEndE = findEnd Unescapable UnclosedEscape (escape conf) (endEscape conf) 
+          findEndE = findEnd Unescapable (\_ -> UnclosedEscape) (escape conf) (endEscape conf) 
           parseLab' :: Pattern l -> (Pattern l -> Pattern l) -> [Char] -> ParserResult (Pattern l)
           parseLab' lastBlock wrapup s =
               case parseLabel s of
