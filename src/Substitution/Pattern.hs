@@ -78,6 +78,7 @@ normalize (Repeat pt) =
     case normalize pt of
       EmptyPattern -> EmptyPattern
       Capture pt'  -> Capture (Repeat pt')
+      Optional pt' -> Repeat pt'
       Repeat pt'   -> Repeat pt'
       npt          -> Repeat npt
 normalize (Optional pt) =
