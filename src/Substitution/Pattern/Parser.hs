@@ -78,7 +78,7 @@ defaultConfig = ParserConfig {
         beginCapture = "(",
         endCapture   = ")",
         repetition   = "*",
-        repetition1  = "+"
+        repetition1  = "+",
         optional     = "?",
         choice       = "|",
         beginEscape  = "\"",
@@ -136,7 +136,7 @@ parse conf parseLabel str =
                   accPat <- parseLab  lastBlock (id) acc
                   escPat <- parseLab' accPat    (id)  ((beginEscape conf) ++ escaped ++ (endEscape conf))
                   parse0 "" (Seq accPat escPat) rem'
-              | Just rem <- l `startsWith` (endEscape conf) 
+              | Just rem <- l `startsWith` (endEscape conf) =
                   Left $ ExtraEndEscape
               | Just rem <- l `startsWith` (repetition conf) = do
                   accPat <- parseLab lastBlock (Repeat) acc
