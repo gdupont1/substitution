@@ -42,6 +42,7 @@ instance (Eq l) => Eq (Label l) where
   BeginCapture == BeginCapture = True
   EndCapture == EndCapture = True
   (Label l1) == (Label l2) = (l1 == l2)
+  _ == _ = False
 
 instance (Ord l) => Ord (Label l) where
   compare (Label l1) (Label l2) = compare l1 l2
