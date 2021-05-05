@@ -74,7 +74,7 @@ parse conf parseLabel str =
     parse0 "" str
     where parse0 acc [] = parseLab acc
           parse0 acc l
-              | [] <- l =
+              | null l =
                   parseLab acc
               | (x:y:xs) <- l, x == escape conf =
                   parse0 (y:x:acc) xs
